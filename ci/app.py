@@ -1,6 +1,6 @@
 from utils import (normalizar_dados, BOD_Calculation, 
                    Entropy_Calculation, EqualWeights, 
-                   PCA_Calculation, Minimal_Uncertainty)
+                   PCA_Calculation, New_Minimal_Uncertainty)
 import plotly.express as px
 import streamlit as st
 import pandas as pd
@@ -127,7 +127,6 @@ if uploaded_file is not None:
                     column_min_max_MU[col] = (min_value, max_value)
             else:
                 column_min_max_MU = {}
-
     if calculate_button:
         if not selected_columns:
             st.error("Error: You need to select at least one column to continue!")
@@ -144,7 +143,6 @@ if uploaded_file is not None:
                         normalization_type = 'Min'
                     
                     data[column] = normalizar_dados(df[column].tolist(), normalization_type)
-
 
                 # Criar uma aba para cada método
                 tabs = st.tabs(["📉 PCA", "📊 Equal Weights", "💹 Shannon's Entropy", "📈 BoD", "🧮 Minimal Uncertainty"])
@@ -172,7 +170,7 @@ if uploaded_file is not None:
                             if any(min_val < 0 or max_val > 1 for min_val, max_val in bounds):
                                 st.error("Error: Min/Max values must be between 0 and 1.")
                                 continue
-                            model = Minimal_Uncertainty(data, ranking_ic, bounds=bounds)
+                            model = New_Minimal_Uncertainty(data, ranking_ic, bounds=bounds)
 
                         try:
                             result = model.run()

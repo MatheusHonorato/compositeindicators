@@ -12,6 +12,9 @@ warnings.filterwarnings("ignore", category=OptimizeWarning)
 import pandas as pd
 import numpy as np
 
+from objectives import MinUncertanty
+from ropt.ray_optimizer import ray_clock_optimization
+
 @dataclass
 class Result:
     weights: List[float]
@@ -339,5 +342,42 @@ class Minimal_Uncertainty:
         for idx in range(self.regs):
             ci = self.composite_indicator(idx, weights)
             result.append(Result(weights=weights, ci=ci))
+        
+        return result
+
+class New_Minimal_Uncertainty:
+    def __init__(self, data, ranking_indicators, aggregation_function=np.dot, bounds=None):
+        self.data = pd.DataFrame(data)
+        self.n = len(self.data.columns)
+        self.ranking_indicators = [pd.Series(ri) for ri in ranking_indicators]
+        self.aggregation_function = aggregation_function
+        
+        if bounds is None:
+            self.lower_limits = [0] * self.n
+            self.upper_limits = [1] * self.n
+            self.bounds = [(0, 1)] * self.n
+        else:
+            self.bounds = bounds
+            self.lower_limits = [b[0] for b in self.bounds]
+            self.upper_limits = [b[1] for b in self.bounds]
+
+    def composite_indicator(self, idx, weights):
+        return self.aggregation_function(self.data[idx], weights)
+    
+    def run(self):
+        result = []
+        weights = ray_clock_optimization(
+                dstep=0.003, limit_nstep=100000,
+                limit_dquality = 0.00000001,
+                mu_x = self.aggregation_function,
+                upper_limits = self.upper_limits,
+                lower_limits = self.lower_limits,
+            )(
+                self.data, lambda ci: MinUncertanty(self.ranking_indicators)(ci),
+            )
+
+        ci = self.data.apply(lambda col: self.aggregation_function(weights, col), axis=1)
+        for score in ci:
+            result.append(Result(weights=weights, ci=score))
         
         return result
