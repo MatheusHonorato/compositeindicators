@@ -127,6 +127,19 @@ if uploaded_file is not None:
                     column_min_max_MU[col] = (min_value, max_value)
             else:
                 column_min_max_MU = {}
+
+        with st.sidebar.expander("Polarization"):
+            if selected_columns:
+                column_polarization = {}
+                for col in selected_columns:
+                    col1 = st.columns([1])
+                    value = st.radio(
+                        col,
+                        ['Min', 'Max'],
+                    )
+                    column_polarization[col] = value
+            else:
+                column_polarization = {}
     if calculate_button:
         if not selected_columns:
             st.error("Error: You need to select at least one column to continue!")
@@ -136,13 +149,7 @@ if uploaded_file is not None:
             with st.spinner('Calculating... Please wait.'):
                 # Normalização das colunas selecionadas 
                 for column in selected_columns:
-                    if (control_variable != "Choose an option") and not df[control_variable].isnull().all():
-                        correlation = df[control_variable].corr(df[column])
-                        normalization_type = 'Min' if correlation > 0 else 'Max'
-                    else:
-                        normalization_type = 'Min'
-                    
-                    data[column] = normalizar_dados(df[column].tolist(), normalization_type)
+                    data[column] = normalizar_dados(df[column].tolist(), column_polarization[column])
 
                 # Criar uma aba para cada método
                 tabs = st.tabs(["📉 PCA", "📊 Equal Weights", "💹 Shannon's Entropy", "📈 BoD", "🧮 Minimal Uncertainty"])
