@@ -65,13 +65,6 @@ if uploaded_file is not None:
                                               number_columns,
                                               help="Select the columns to be used in the calculation of composite indicators. At least one column must be selected.")
 
-    # Selecionar variável de controle
-    control_variable = st.sidebar.selectbox("Select the control variable", 
-                                            ["Choose an option"] + number_columns,
-                                            help="""Select a control variable to normalize the data.
-                                            Min-Max normalization will be minimum-oriented if the correlation is greater than zero; otherwise, it will be maximum-oriented.
-                                            If no control variable is selected, minimum-oriented Min-Max normalization will be applied by default.""")
-
     # Selecionar colunas
     string_columns = df.columns.tolist()
     labels_column = st.sidebar.selectbox("Select label column", 
@@ -84,6 +77,18 @@ if uploaded_file is not None:
 
     # Novo bloco: campos para min/max de cada coluna selecionada
     st.sidebar.markdown("---")
+    with st.sidebar.expander("Polarization"):
+            if selected_columns:
+                column_polarization = {}
+                for col in selected_columns:
+                    col1 = st.columns([1])
+                    value = st.radio(
+                        col,
+                        ['Min', 'Max'],
+                    )
+                    column_polarization[col] = value
+            else:
+                column_polarization = {}
     with st.sidebar.expander("Setup BoD: Expert Opinion"):
         if selected_columns:
             column_min_max_BoD = {}
@@ -127,19 +132,6 @@ if uploaded_file is not None:
                     column_min_max_MU[col] = (min_value, max_value)
             else:
                 column_min_max_MU = {}
-
-        with st.sidebar.expander("Polarization"):
-            if selected_columns:
-                column_polarization = {}
-                for col in selected_columns:
-                    col1 = st.columns([1])
-                    value = st.radio(
-                        col,
-                        ['Min', 'Max'],
-                    )
-                    column_polarization[col] = value
-            else:
-                column_polarization = {}
     if calculate_button:
         if not selected_columns:
             st.error("Error: You need to select at least one column to continue!")
