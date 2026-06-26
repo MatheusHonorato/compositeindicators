@@ -12,8 +12,10 @@ warnings.filterwarnings("ignore", category=OptimizeWarning)
 import pandas as pd
 import numpy as np
 
-from objectives import MinUncertanty
+from objectives import MinUncertanty, MinContinuousUncertanty
 from ropt.ray_optimizer import ray_clock_optimization
+from ropt.optimizer import optimization
+from ropt.normalizer import series_ranking_normalize
 
 @dataclass
 class Result:
@@ -379,5 +381,43 @@ class New_Minimal_Uncertainty:
         ci = self.data.apply(lambda col: self.aggregation_function(weights, col), axis=1)
         for score in ci:
             result.append(Result(weights=weights, ci=score))
-        
+
+        return result
+
+
+class Continuous_Minimal_Uncertainty:
+    def __init__(self, data, ranking_indicators, aggregation_function=np.dot, bounds=None):
+        self.data = pd.DataFrame(data)
+        self.n = len(self.data.columns)
+        # Normalize references to the CI scale ([0, 1)) so the continuous
+        # objective compares like with like.
+        self.ranking_indicators = [series_ranking_normalize(pd.Series(ri)) for ri in ranking_indicators]
+        self.aggregation_function = aggregation_function
+
+        if bounds is None:
+            self.lower_limits = [0] * self.n
+            self.upper_limits = [1] * self.n
+            self.bounds = [(0, 1)] * self.n
+        else:
+            self.bounds = bounds
+            self.lower_limits = [b[0] for b in self.bounds]
+            self.upper_limits = [b[1] for b in self.bounds]
+
+    def composite_indicator(self, idx, weights):
+        return self.aggregation_function(self.data[idx], weights)
+
+    def run(self):
+        result = []
+        weights = optimization(
+                mu_x = self.aggregation_function,
+                upper_limits = self.upper_limits,
+                lower_limits = self.lower_limits,
+            )(
+                self.data, lambda ci: MinContinuousUncertanty(self.ranking_indicators)(ci),
+            )
+
+        ci = self.data.apply(lambda col: self.aggregation_function(weights, col), axis=1)
+        for score in ci:
+            result.append(Result(weights=weights, ci=score))
+
         return result

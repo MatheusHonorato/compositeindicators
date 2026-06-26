@@ -1,6 +1,8 @@
-from utils import (normalizar_dados, BOD_Calculation, 
-                   Entropy_Calculation, EqualWeights, 
-                   PCA_Calculation, New_Minimal_Uncertainty)
+from utils import (normalizar_dados, BOD_Calculation,
+                   Entropy_Calculation, EqualWeights,
+                   PCA_Calculation, New_Minimal_Uncertainty,
+                   Continuous_Minimal_Uncertainty)
+from plots import correlation_plot
 import plotly.express as px
 import streamlit as st
 import pandas as pd
@@ -17,7 +19,7 @@ st.set_page_config(
 )
 
 st.title('📉 Software for building composite indicators with maximum stability')
-st.header("Calculate composite indicators. Methods: PCA, BoD, Equal Weights, and Shannon's Entropy")
+st.header("Calculate composite indicators. Methods: PCA, BoD, Equal Weights, Shannon's Entropy, Minimal Uncertainty, and Continuous Uncertainty")
 
 st.markdown(
     f"""
@@ -29,6 +31,12 @@ st.markdown(
         left: 16px;
         font-size: 0.8em;
         color: gray;
+    }}
+    /* Permite que a barra de abas quebre em várias linhas
+       para que todas as abas (incl. Continuous Uncertainty) fiquem visíveis */
+    [data-testid="stTabs"] [data-baseweb="tab-list"] {{
+        flex-wrap: wrap;
+        overflow: visible;
     }}
     </style>
     """,
@@ -132,6 +140,28 @@ if uploaded_file is not None:
                     column_min_max_MU[col] = (min_value, max_value)
             else:
                 column_min_max_MU = {}
+
+        with st.sidebar.expander("Setup Continuous Uncertainty: Expert Opinion"):
+            if selected_columns:
+                column_min_max_CU = {}
+                for col in selected_columns:
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    col1.markdown("**"+col+"**")
+                    min_value = col2.number_input(
+                        label="**Min**",
+                        value=0.0,
+                        format="%.4f",
+                        key=f"min_CU_{col}"
+                    )
+                    max_value = col3.number_input(
+                        label="**Max**",
+                        value=1.0,
+                        format="%.4f",
+                        key=f"max_CU_{col}"
+                    )
+                    column_min_max_CU[col] = (min_value, max_value)
+            else:
+                column_min_max_CU = {}
     if calculate_button:
         if not selected_columns:
             st.error("Error: You need to select at least one column to continue!")
@@ -143,11 +173,16 @@ if uploaded_file is not None:
                 for column in selected_columns:
                     data[column] = normalizar_dados(df[column].tolist(), column_polarization[column])
 
-                # Criar uma aba para cada método
-                tabs = st.tabs(["📉 PCA", "📊 Equal Weights", "💹 Shannon's Entropy", "📈 BoD", "🧮 Minimal Uncertainty"])
-                methods = ["PCA", "Equal Weights", "Shannon's Entropy", "BoD", "Minimal Uncertainty"]
+                # Coletor dos CIs de cada método (para a aba de correlação)
+                ci_collection = {}
 
-                for tab, method in zip(tabs, methods):
+                # Criar uma aba para cada método (+ aba de correlação ao final)
+                tabs = st.tabs(["📉 PCA", "📊 Equal Weights", "💹 Shannon's Entropy", "📈 BoD", "🧮 Minimal Uncertainty", "🧩 Continuous Uncertainty", "🔗 Correlation"])
+                methods = ["PCA", "Equal Weights", "Shannon's Entropy", "BoD", "Minimal Uncertainty", "Continuous Uncertainty"]
+                method_tabs = tabs[:-1]
+                correlation_tab = tabs[-1]
+
+                for tab, method in zip(method_tabs, methods):
                     with tab:
                         # Cálculo do método correspondente
                         if method == "PCA":
@@ -170,6 +205,13 @@ if uploaded_file is not None:
                                 st.error("Error: Min/Max values must be between 0 and 1.")
                                 continue
                             model = New_Minimal_Uncertainty(data, ranking_ic, bounds=bounds)
+                        elif method == "Continuous Uncertainty":
+                            bounds = [column_min_max_CU[col] for col in selected_columns if col in column_min_max_CU]
+                            #verificar se bounds estas entre 0 e 1
+                            if any(min_val < 0 or max_val > 1 for min_val, max_val in bounds):
+                                st.error("Error: Min/Max values must be between 0 and 1.")
+                                continue
+                            model = Continuous_Minimal_Uncertainty(data, ranking_ic, bounds=bounds)
 
                         try:
                             result = model.run()
@@ -180,8 +222,11 @@ if uploaded_file is not None:
                         # Organizar os resultados
                         filtered_df = pd.DataFrame(result)
 
+                        # Guardar o CI na ordem original das DMUs (para a correlação entre métodos)
+                        ci_collection[method] = filtered_df["ci"].tolist()
+
                         #Ranking dos indicadores compostos para calcular a incerteza mínima
-                        if method != "Minimal Uncertainty":
+                        if method not in ("Minimal Uncertainty", "Continuous Uncertainty"):
                             ranking_ic.append(filtered_df["ci"].rank(method='min').to_list())
 
                         if labels_column.strip() != "Choose an option":
@@ -241,6 +286,17 @@ if uploaded_file is not None:
                             """,
                             unsafe_allow_html=True
                         )
+
+                # Aba de correlação: quanto os CIs dos métodos concordam entre si
+                with correlation_tab:
+                    st.subheader("Correlation between methods")
+                    st.caption("Pearson correlation between the composite indicators (CI) produced by each method.")
+                    ci_df = pd.DataFrame(ci_collection)
+                    if ci_df.shape[1] >= 2:
+                        fig_corr = correlation_plot(ci_df)
+                        st.pyplot(fig_corr)
+                    else:
+                        st.info("At least two methods must be calculated to show the correlation plot.")
 
 else:
     st.warning("Please upload an Excel file to proceed.")
