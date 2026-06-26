@@ -2,7 +2,7 @@ from utils import (normalizar_dados, BOD_Calculation,
                    Entropy_Calculation, EqualWeights,
                    PCA_Calculation, New_Minimal_Uncertainty,
                    Continuous_Minimal_Uncertainty)
-from plots import correlation_plot
+from plots import correlation_plot, violin_plot
 import plotly.express as px
 import streamlit as st
 import pandas as pd
@@ -177,10 +177,11 @@ if uploaded_file is not None:
                 ci_collection = {}
 
                 # Criar uma aba para cada método (+ aba de correlação ao final)
-                tabs = st.tabs(["📉 PCA", "📊 Equal Weights", "💹 Shannon's Entropy", "📈 BoD", "🧮 Minimal Uncertainty", "🧩 Continuous Uncertainty", "🔗 Correlation"])
+                tabs = st.tabs(["📉 PCA", "📊 Equal Weights", "💹 Shannon's Entropy", "📈 BoD", "🧮 Minimal Uncertainty", "🧩 Continuous Uncertainty", "🔗 Correlation", "🎻 Distribution"])
                 methods = ["PCA", "Equal Weights", "Shannon's Entropy", "BoD", "Minimal Uncertainty", "Continuous Uncertainty"]
-                method_tabs = tabs[:-1]
-                correlation_tab = tabs[-1]
+                method_tabs = tabs[:-2]
+                correlation_tab = tabs[-2]
+                violin_tab = tabs[-1]
 
                 for tab, method in zip(method_tabs, methods):
                     with tab:
@@ -297,6 +298,17 @@ if uploaded_file is not None:
                         st.pyplot(fig_corr)
                     else:
                         st.info("At least two methods must be calculated to show the correlation plot.")
+
+                # Aba de distribuição: violino dos CIs de cada método
+                with violin_tab:
+                    st.subheader("Distribution of composite indicators")
+                    st.caption("Violin plot of the composite indicators (CI) produced by each method, with median, interquartile range and full range.")
+                    ci_df = pd.DataFrame(ci_collection)
+                    if ci_df.shape[1] >= 1:
+                        fig_violin = violin_plot(ci_df)
+                        st.pyplot(fig_violin)
+                    else:
+                        st.info("At least one method must be calculated to show the distribution plot.")
 
 else:
     st.warning("Please upload an Excel file to proceed.")
